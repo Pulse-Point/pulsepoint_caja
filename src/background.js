@@ -5,6 +5,7 @@ import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
 const isDevelopment = process.env.NODE_ENV !== 'production'
 require('@electron/remote/main').initialize() // enable IPC communication
+const { sequelize } = require('../models')
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -14,8 +15,9 @@ protocol.registerSchemesAsPrivileged([
 async function createWindow() {
   // Create the browser window.
   const win = new BrowserWindow({
-    width: 800,
-    height: 600,
+    width: isDevelopment ? 1200 : 800,
+    height: isDevelopment ? 800 : 600,
+    icon: 'src/assets/icons/pulsepoint_app_logo.png',
     webPreferences: {
       
       // Use pluginOptions.nodeIntegration, leave this alone
@@ -26,6 +28,9 @@ async function createWindow() {
     }
   })
 
+  // disable menu bar   
+  win.setMenuBarVisibility(false)
+
   if (process.env.WEBPACK_DEV_SERVER_URL) {
     // Load the url of the dev server if in development mode
     await win.loadURL(process.env.WEBPACK_DEV_SERVER_URL)
@@ -35,6 +40,11 @@ async function createWindow() {
     // Load the index.html when not in development
     win.loadURL('app://./index.html')
   }
+
+  // initialize database
+  sequelize.sync().then(()=>{
+    console.log('Conexión a la base de datos establecida')
+  })
 }
 
 // Quit when all windows are closed.
