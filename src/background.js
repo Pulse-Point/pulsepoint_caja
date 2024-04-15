@@ -3,9 +3,11 @@
 import { app, protocol, BrowserWindow } from 'electron'
 import { createProtocol } from 'vue-cli-plugin-electron-builder/lib'
 import installExtension, { VUEJS3_DEVTOOLS } from 'electron-devtools-installer'
+import { DataTypes } from 'sequelize'
 const isDevelopment = process.env.NODE_ENV !== 'production'
 require('@electron/remote/main').initialize() // enable IPC communication
-const { sequelize } = require('../models')
+const db = require('../models')
+const { ipcMain } = require('electron')
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -24,7 +26,8 @@ async function createWindow() {
       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
-      enableRemoteModule: true
+      enableRemoteModule: true,
+      preload: 'preload.js'
     }
   })
 
@@ -42,8 +45,10 @@ async function createWindow() {
   }
 
   // initialize database
-  sequelize.sync().then(()=>{
+  db.sequelize.sync().then(()=>{
     console.log('Conexión a la base de datos establecida')
+  }).catch(err => {
+    console.log('Error al conectar a la base de datos:', err)
   })
 }
 
@@ -91,3 +96,22 @@ if (isDevelopment) {
     })
   }
 }
+
+// Database processes/listeners
+
+// retrieve products
+ipcMain.on('retrieve-products', async (event) => {
+  const Producto = require('../models/producto')(db.sequelize, DataTypes)
+
+  console.log('retrieve-products event received')
+
+  try {
+    Producto.findAll().then(products => {
+      console.log('products retrieved:', products)
+
+      event.sender.send('products', products)
+    })
+  } catch (error) {
+    console.log('Error retrieving products:', error)
+  }
+})

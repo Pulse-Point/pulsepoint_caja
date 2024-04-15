@@ -43,6 +43,7 @@
 
 <script>
     import { collapsed, toggleSidebar } from '@/components/sidebar/state'  
+    import { ipcRenderer } from 'electron'
 
     export default {
         data() {
@@ -50,9 +51,20 @@
                 products: []
             }
         },
+        methods: {
+            retrieveProducts() {                
+                ipcRenderer.send('retrieve-products') // ask main process to retrieve products
+
+                // listen for main process response
+                ipcRenderer.once('products', (event, products) => {
+                    console.log('products event received:', products)
+                    this.products = products
+                })
+            }
+        },
         async created() {
-            // const { ipcRenderer } = require('electron')
-            // ipcRenderer.send('retrieve-products')
+            // retrieve products from main process   
+            this.retrieveProducts()
         },
         setup() {
             return { collapsed, toggleSidebar }

@@ -15,6 +15,9 @@
     components: { 
         SideBar 
     },
+    created() {
+      
+    },
     setup() {
         return { sidebarWidth }
     }
