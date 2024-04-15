@@ -11,8 +11,7 @@
         </select>
 
         <div style="width: 40%" class="input-group mb-3">
-            <input v-model="searchText" @input="handleInputChange" type="text" class="form-control" placeholder="Escriba el nombre del producto a buscar..."
-            aria-label="Example text with button addon" aria-describedby="button-addon1">
+            <input v-model="searchText" @input="handleInputChange" type="text" class="form-control" placeholder="Escriba el nombre del producto a buscar...">
         </div>
     </div>
     <div class="table-section">
