@@ -2,43 +2,44 @@
     <h1 class="view-title">Inventario</h1>
 
     <div class="action-menu">
-        <button type="button" class="btn btn-primary">Añadir Nuevo Producto</button>
-        
-        <select style="width: 20%" class="form-select mb-3" aria-label="Large select example">
-            <option selected>Opciones de filtro</option>
-            <option value="1">Ascendente</option>
-            <option value="2">Descendente</option>
-            <option value="3">Precio</option>
+        <select v-model="selectedOption" @change="handleOptionChange" style="width: 20%" class="form-select mb-3" aria-label="Large select example">
+            <option disabled selected value="">Opciones de filtro</option>
+            <option value="1">Precio &#x2191;</option>
+            <option value="2">Precio &#x2193;</option>
+            <option value="3">Nombre &#x2191;</option>
+            <option value="4">Nombre &#x2193;</option>
         </select>
 
         <div style="width: 40%" class="input-group mb-3">
-            <input type="text" class="form-control" placeholder="Escriba el nombre del producto a buscar..." aria-label="Example text with button addon" aria-describedby="button-addon1">
-            <button class="btn btn-outline-primary" type="button" id="button-addon1">Buscar</button>
+            <input v-model="searchText" @input="handleInputChange" type="text" class="form-control" placeholder="Escriba el nombre del producto a buscar..."
+            aria-label="Example text with button addon" aria-describedby="button-addon1">
         </div>
     </div>
-
-    <table class="table inventory-table">
-        <thead class="table-header">
-            <th>Código</th>
-            <th>Tipo</th>
-            <th>Nombre</th>
-            <th>Precio</th>
-            <th>Proveedor</th>
-            <th>Cant. Existente</th>
-            <th>Acciones</th>
-        </thead>
-        <tbody>
-            <tr v-for="product in products" :key="product.productoCod">
-                <td>{{ product.productoCod }}</td>
-                <td>{{ product.tipoProductoId }}</td>
-                <td>{{ product.productoNombre }}</td>
-                <td>{{ product.productoPrecio }}</td>
-                <td>{{ product.productoProveedor }}</td>
-                <td>{{ product.productoExistencia }}</td>
-                <td><!-- Acciones --></td>
-            </tr>
-        </tbody>
-    </table>
+    <div class="table-section">
+        <table class="content-table">
+            <thead>
+                <tr>
+                    <th scope="col">Código</th>
+                    <th scope="col">Tipo</th>
+                    <th scope="col">Nombre</th>
+                    <th scope="col">Precio</th>
+                    <th scope="col">Proveedor</th>
+                    <th scope="col">Cant. Existente</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr v-for="product in filteredProducts" :key="product.productoCod">
+                    <td>{{ product.productoCod }}</td>
+                    <td>{{ product.tipoProductoNombre }}</td>
+                    <td>{{ product.productoNombre }}</td>
+                    <td>{{ product.productoPrecio }}</td>
+                    <td>{{ product.productoProveedor }}</td>
+                    <td>{{ product.productoExistencia }}</td>
+                </tr>
+            </tbody>
+        </table>
+        &nbsp;
+    </div>
 </template>
 
 <script>
@@ -48,7 +49,11 @@
     export default {
         data() {
             return {
-                products: []
+                products: [],
+                filteredProducts: [],
+                productTypes: [],
+                selectedOption: '',
+                searchText: ''
             }
         },
         methods: {
@@ -58,12 +63,51 @@
                 // listen for main process response
                 ipcRenderer.once('products', (event, products) => {
                     console.log('products event received:', products)
+                    
+                    // map product type names to product
+                    products.forEach(product => {
+                        product.tipoProductoNombre = this.productTypes.find(pt => pt.id === product.tipoProductoId).tipoProducto
+                    })
+
                     this.products = products
+                    this.filteredProducts = products
                 })
+            },
+            retrieveProductTypes() {
+                ipcRenderer.send('retrieve-product-types') // ask main process to retrieve product types
+                
+                // listen for main process response
+                ipcRenderer.once('product-types', (event, productTypes) => {
+                    console.log('product-types event received:', productTypes)
+                    this.productTypes = productTypes
+                })
+            },
+            handleOptionChange() {
+                if (this.selectedOption === '1') {
+                    // Sort by price ascending
+                    this.products.sort((a, b) => a.productoPrecio - b.productoPrecio);
+                } else if (this.selectedOption === '2') {
+                    // Sort by price descending
+                    this.products.sort((a, b) => b.productoPrecio - a.productoPrecio);
+                } else if (this.selectedOption === '3') {
+                    // Sort by name ascending
+                    this.products.sort((a, b) => a.productoNombre.localeCompare(b.productoNombre));
+                } else if (this.selectedOption === '4') {
+                    // Sort by name descending
+                    this.products.sort((a, b) => b.productoNombre.localeCompare(a.productoNombre));
+                }
+            },
+            handleInputChange() {
+                // Filter products based on input text
+                this.filteredProducts = this.products.filter(product => product.productoNombre.toLowerCase().includes(this.searchText.toLowerCase()));
+            },
+            handleButtonClick() {
+                // Retrieve products again when button is clicked
+                this.retrieveProducts();
             }
         },
-        async created() {
-            // retrieve products from main process   
+        async created() {            
+            this.retrieveProductTypes()
             this.retrieveProducts()
         },
         setup() {

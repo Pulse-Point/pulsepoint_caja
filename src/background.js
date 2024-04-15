@@ -99,6 +99,9 @@ if (isDevelopment) {
 
 // Database processes/listeners
 
+
+/* INVENTORY VIEW */
+
 // retrieve products
 ipcMain.on('retrieve-products', async (event) => {
   const Producto = require('../models/producto')(db.sequelize, DataTypes)
@@ -107,11 +110,31 @@ ipcMain.on('retrieve-products', async (event) => {
 
   try {
     Producto.findAll().then(products => {
+      const productsData = products.map(product => product.dataValues)
       console.log('products retrieved:', products)
 
-      event.sender.send('products', products)
+      event.sender.send('products', productsData)
     })
   } catch (error) {
     console.log('Error retrieving products:', error)
+  }
+})
+
+// retrieve product types
+ipcMain.on('retrieve-product-types', async (event) => {
+  const TipoProducto = require('../models/tipoproducto')(db.sequelize, DataTypes)
+
+  console.log('retrieve-product-types event received')
+
+  try {
+    TipoProducto.findAll().then(productTypes => {
+      const productTypesData = productTypes.map(productType => productType.dataValues)
+
+      console.log('product types retrieved:', productTypesData)
+
+      event.sender.send('product-types', productTypesData)
+    })
+  } catch (error) {
+    console.log('Error retrieving product types:', error)
   }
 })
