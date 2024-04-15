@@ -20,7 +20,17 @@ const routes = [
     {
         path: '/clientela',
         name: 'ClientelaView',
-        component: () => import('../views/ClientelaView.vue')
+        component: () => import('../views/clients/ClientelaView.vue')
+    },
+    {
+        path: '/clientela/add',
+        name: 'AddClientView',
+        component: () => import('../views/clients/AddClientView.vue')
+    },
+    {
+        path: '/clientela/edit/:dni',
+        name: 'AddClientView',
+        component: () => import('../views/clients/UpdateClientView.vue')
     },
     {
         path: '/contratos',
