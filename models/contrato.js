@@ -15,7 +15,7 @@ module.exports = (sequelize, DataTypes) => {
   }
   Contrato.init({
     contratoId: DataTypes.INTEGER,
-    clienteId: DataTypes.INTEGER,
+    clienteDni: DataTypes.STRING,
     servicioCod: DataTypes.STRING,
     contratoDescripcion: DataTypes.STRING,
     servicioPrecio: DataTypes.DECIMAL,

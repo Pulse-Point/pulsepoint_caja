@@ -24,13 +24,28 @@ const routes = [
     },
     {
         path: '/clientela/edit/:dni',
-        name: 'AddClientView',
+        name: 'EditClienteView',
         component: () => import('../views/clients/UpdateClientView.vue')
     },
     {
         path: '/contratos',
         name: 'ContratosView',
-        component: () => import('../views/ContratosView.vue')
+        component: () => import('../views/contracts/ContratosView.vue')
+    },
+    {
+        path: '/contratos/add',
+        name: 'AddContract',
+        component: () => import('../views/contracts/AddContract.vue')
+    },
+    {
+        path: '/contratos/view/:dni',
+        name: 'ViewContract',
+        component: () => import('../views/contracts/ViewContract.vue')
+    },
+    {
+        path: '/contratos/edit/:dni',
+        name: 'EditContract',
+        component: () => import('../views/contracts/EditContract.vue')
     },
     {
         path: '/inventario',

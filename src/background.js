@@ -9,6 +9,9 @@ const isDevelopment = process.env.NODE_ENV !== 'production'
 require('@electron/remote/main').initialize() // enable IPC communication
 const db = require('../models')
 const { ipcMain } = require('electron')
+require('dotenv').config()
+
+const API_URL = process.env.API_URL
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
@@ -121,13 +124,16 @@ async function sendRequest(endpoint, data, method) {
 
     console.log('Response:', response.data);
   } catch (error) {
-    console.log('Error sending request:', error);
     requestQueue.push({ endpoint, data });
   }
 }
 
 async function retryFailedRequests() {
   let newQueue = [];
+
+  if (requestQueue.length === 0) {  
+    return;
+  }
 
   console.log('Retrying failed requests:', requestQueue);
   
@@ -136,7 +142,6 @@ async function retryFailedRequests() {
       const response = await axios.post(request.endpoint, request.data);
       console.log('Response:', response.data);
     } catch (error) {
-      console.log('Error sending request:', error);
       newQueue.push(request);
     }
   }
@@ -227,7 +232,6 @@ ipcMain.on('retrieve-a-client', async (event, dni) => {
   }
 })
 
-
 // add client
 ipcMain.on('add-client', async (event, clientData) => {
   const Cliente = require('../models/cliente')(db.sequelize, DataTypes)
@@ -274,7 +278,7 @@ ipcMain.on('add-client', async (event, clientData) => {
   }
 
   // send request to server  
-  await sendRequest('http://26.92.45.172:4750/api/Cliente', client_toCreate, 'POST')
+  await sendRequest(`${API_URL}/api/Cliente`, client_toCreate, 'POST')
 })
 
 // update client
@@ -313,6 +317,146 @@ ipcMain.on('update-client', async (event, clientData) => {
   }
 
   // send request to server
-  await sendRequest(`http://http://26.92.45.172:4750/api/Cliente/${client_toUpdate.clienteDni}`, client_toUpdate, 'PUT')
+  await sendRequest(`${API_URL}/api/Cliente/${client_toUpdate.clienteDni}`, client_toUpdate, 'PUT')
 })
 
+/* CONTRACTS VIEW */
+
+// retrieve services
+ipcMain.on('retrieve-services', async (event) => {
+  const Servicio = require('../models/servicio')(db.sequelize, DataTypes)
+
+  console.log('retrieve-services event received')
+
+  try {
+    Servicio.findAll().then(services => {
+      const servicesData = services.map(service => service.dataValues)
+
+      console.log('services retrieved:', servicesData)
+
+      event.sender.send('services-retrieved', servicesData)
+    })
+  } catch (error) {
+    console.log('Error retrieving services:', error)
+  }
+})
+
+// retrieve contracts
+ipcMain.on('retrieve-contracts', async (event) => {
+  const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
+
+  console.log('retrieve-contracts event received')
+
+  try {
+    Contrato.findAll().then(contracts => {
+      const contractsData = contracts.map(contract => contract.dataValues)
+
+      console.log('contracts retrieved:', contractsData)
+
+      event.sender.send('contracts-retrieved', contractsData)
+    })
+  } catch (error) {
+    console.log('Error retrieving contracts:', error)
+  }
+})
+
+// retrieve a contract
+ipcMain.on('retrieve-a-contract', async (event, dni) => {
+  const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
+
+  console.log('retrieve-a-contract event received')
+
+  try {
+    Contrato.findOne({ where: { clienteDni: dni } }).then(contract => {
+      const contractData = contract.dataValues
+
+      console.log('contract retrieved:', contractData)
+
+      event.sender.send('contract-retrieved', contractData)
+    })
+  } catch (error) {
+    event.sender.send('error-retrieving-contract', error)
+  }
+})
+
+// add contract
+ipcMain.on('add-contract', async (event, contractData) => {
+  const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
+
+  console.log('add-contract event received')
+
+  const contract_toCreate = {
+    clienteDni: contractData.clienteDni,
+    servicioCod: contractData.servicioCod,
+    contratoDescripcion: contractData.contratoDescripcion,
+    servicioPrecio: contractData.servicioPrecio,
+    contratoFechaInicio: contractData.contratoFechaInicio,
+    contratoFechaVencimiento: contractData.contratoFechaVencimiento
+  }
+
+  console.log('contract to create:', contract_toCreate)
+
+  const t = await db.sequelize.transaction();
+  try {
+    // save in local database
+    await Contrato.create({
+      clienteDni: contractData.clienteDni,
+      servicioCod: contractData.servicioCod,
+      contratoDescripcion: contractData.contratoDescripcion,
+      servicioPrecio: contractData.servicioPrecio,
+      contratoFechaInicio: contractData.contratoFechaInicio,
+      contratoFechaVencimiento: contractData.contratoFechaVencimiento
+    }, { transaction: t });
+    
+    await t.commit();
+    event.sender.send('contract-added', contract_toCreate)
+    console.log('New contract added:', contract_toCreate)
+
+  } catch (error) {
+    await t.rollback();
+    event.sender.send('error-adding-contract', error)
+    console.log('sent error adding contract')
+  }
+
+  // send request to server  
+  await sendRequest(`${API_URL}/api/Contrato`, contract_toCreate, 'POST')
+})
+
+// update contract
+ipcMain.on('update-contract', async (event, contractData) => {
+  const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
+
+  console.log('update-contract event received')
+
+  const contract_toUpdate = {
+    clienteDni: contractData.clienteDni,
+    servicioCod: contractData.servicioCod,
+    contratoDescripcion: contractData.contratoDescripcion,
+    servicioPrecio: contractData.servicioPrecio,
+    contratoFechaInicio: contractData.contratoFechaInicio,
+    contratoFechaVencimiento: contractData.contratoFechaVencimiento
+  }
+
+  const t = await db.sequelize.transaction();
+  try {
+    // save in local database
+    await Contrato.update({
+      servicioCod: contractData.servicioCod,
+      contratoDescripcion: contractData.contratoDescripcion,
+      servicioPrecio: contractData.servicioPrecio,
+      contratoFechaInicio: contractData.contratoFechaInicio,
+      contratoFechaVencimiento: contractData.contratoFechaVencimiento
+    }, { where: { clienteDni: contractData.clienteDni }, transaction: t });
+    await t.commit();
+    event.sender.send('contract-updated', contract_toUpdate)
+    console.log('Contract updated:', contract_toUpdate)
+
+  } catch (error) {
+    await t.rollback();
+    event.sender.send('error-updating-contract', error)
+    console.log('sent error updating contract')
+  }
+
+  // send request to server  
+  await sendRequest(`${API_URL}/api/Contrato`, contract_toUpdate, 'PUT')
+})
