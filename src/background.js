@@ -460,3 +460,83 @@ ipcMain.on('update-contract', async (event, contractData) => {
   // send request to server  
   await sendRequest(`${API_URL}/api/Contrato`, contract_toUpdate, 'PUT')
 })
+
+// create contract bill
+ipcMain.on('create-contract-bill', async (event, billData) => {
+  const Factura = require('../models/factura')(db.sequelize, DataTypes)
+
+  console.log('create-contract-bill event received')
+
+  const billCount = await Factura.count()
+  let billCode = `FAC${billCount + 1}`
+  const billNumber = billCode.split('FAC')[1]
+  if (billCount+1 < 10) {
+    billCode = `FAC00${billNumber}`
+  }
+  else if (billCount+1 < 100) {
+    billCode = `FAC0${billNumber}`
+  }
+  else {
+    billCode = `FAC${billNumber}`
+  }
+
+  const bill_toCreate = {
+    facturaCod: billCode,
+    clienteDni: billData.clienteDni,
+    sucursalId: 1,
+    facturaDetalle: billData.facturaDetalle,
+    facturaDescripcion: 'Pago de contrato',
+    facturaMetodoPago: billData.facturaMetodoPago,
+    facturaItbis: billData.facturaSubtotal * 0.18,
+    facturaSubtotal: billData.facturaSubtotal,
+    facturaTotal: billData.facturaSubtotal + (billData.facturaSubtotal * 0.18)
+  }
+
+  console.log('bill to create:', bill_toCreate)
+
+  const t = await db.sequelize.transaction();
+  try {
+    // save in local database
+    await Factura.create({
+      facturaCod: bill_toCreate.facturaCod,
+      clienteDni: bill_toCreate.clienteDni,
+      sucursalId: bill_toCreate.sucursalId,
+      facturaDetalle: bill_toCreate.facturaDetalle,
+      facturaDescripcion: bill_toCreate.facturaDescripcion,
+      facturaMetodoPago: bill_toCreate.facturaMetodoPago,
+      facturaItbis: bill_toCreate.facturaItbis,
+      facturaSubtotal: bill_toCreate.facturaSubtotal,
+      facturaTotal: bill_toCreate.facturaTotal
+    }, { transaction: t });
+    await t.commit();
+    event.sender.send('contract-bill-created', bill_toCreate)
+    console.log('New bill created:', bill_toCreate)
+
+  } catch (error) {
+    await t.rollback();
+    event.sender.send('error-creating-bill', error)
+    console.log('sent error creating bill')
+  }
+
+  // send request to server  
+  await sendRequest(`${API_URL}/api/Factura`, bill_toCreate, 'POST')
+})
+
+// retrieve a bill
+ipcMain.on('retrieve-a-bill', async (event, dni) => {
+  const Factura = require('../models/factura')(db.sequelize, DataTypes)
+
+  console.log('retrieve-contract-bill event received')
+
+  try {
+    Factura.findOne({ where: { clienteDni: dni } }).then(bill => {
+      const billData = bill.dataValues
+
+      console.log('bill retrieved:', billData)
+
+      event.sender.send('bill-retrieved', billData)
+    })
+  } catch (error) {
+    event.sender.send('error-retrieving-bill', error)
+  }
+})

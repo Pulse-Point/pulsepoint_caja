@@ -15,7 +15,7 @@ module.exports = (sequelize, DataTypes) => {
   }
   Factura.init({
     facturaCod: DataTypes.STRING,
-    clienteId: DataTypes.INTEGER,
+    clienteDni: DataTypes.STRING,
     sucursalId: DataTypes.INTEGER,
     facturaDetalle: DataTypes.STRING,
     facturaDescripcion: DataTypes.STRING,

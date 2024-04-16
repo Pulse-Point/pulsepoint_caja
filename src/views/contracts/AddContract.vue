@@ -8,6 +8,7 @@
                 <h2 style="font-size: 24px; color: #333; text-align: center;">Resultado</h2>
                 <p style="font-size: 18px; color: #666; line-height: 1.6;">{{ modalMessage }}</p>        
                 <button class="btn btn-primary" @click="$router.push('/contratos')">Aceptar</button>
+                <button class="btn btn-primary" @click="$router.push(`/contratos/view/bill/${contract.clienteDni}`)">Ver factura</button>
             </div>
         </div>
     </transition>
@@ -52,6 +53,17 @@
                     <input id="contratoFechaVencimiento" v-model="contract.contratoFechaVencimiento" type="date" class="form-control" required>
                 </div>
 
+                <!-- payment methods -->
+                <div class="mb-3">
+                    <label for="paymentMethod" class="form-label">Método de Pago:</label>
+                    <select id="paymentMethod" v-model="bill.facturaMetodoPago" class="form-control" required>
+                        <option value="">Seleccione un método de pago...</option>
+                        <option value="efectivo">Efectivo</option>
+                        <option value="tarjeta">Tarjeta</option>
+                        <option value="transferencia">Transferencia</option>
+                    </select>
+                </div>
+
                 <div class="totals">
                     <h3>Total: RD$ {{ totalPrice }}</h3>
                 </div>
@@ -89,6 +101,13 @@
                     servicioPrecio: '',
                     contratoFechaInicio: '',
                     contratoFechaVencimiento: ''
+                },
+                bill: {
+                    clienteDni: '',
+                    facturaDetalle: '',
+                    facturaDescripcion: '',
+                    facturaSubtotal: '',
+                    facturaMetodoPago: '',
                 }
             }
         },
@@ -119,10 +138,24 @@
                     contratoFechaVencimiento: this.contract.contratoFechaVencimiento
                 }
 
-                ipcRenderer.send('add-contract', contractData);
+                const billData = {
+                    clienteDni: this.contract.clienteDni,
+                    facturaDetalle: this.contract.contratoDescripcion,
+                    facturaDescripcion: 'Pago de Servicio',
+                    facturaSubtotal: this.contract.servicioPrecio,
+                    facturaMetodoPago: this.bill.facturaMetodoPago
+                }
 
-                ipcRenderer.once('contract-added', (event, contract) => {
+                ipcRenderer.send('add-contract', contractData);
+                ipcRenderer.send('create-contract-bill', billData);
+
+                ipcRenderer.once('contract-bill-created', (event, bill) => {
+                    console.log('contract-bill-created event received:', bill);
+                });
+                
+                ipcRenderer.once('contract-added', (contract) => {
                     console.log('contract-added event received:', contract);
+
                     this.isSubmitting = false;
                     this.showModal = true;
                     this.modalMessage = 'Contrato agregado exitosamente...';
@@ -155,6 +188,7 @@
         beforeUnmount() {
             ipcRenderer.removeAllListeners('contract-added');
             ipcRenderer.removeAllListeners('contract-already-exists');
+            ipcRenderer.removeAllListeners('error-adding-contract');
         },
         setup() {
             return { collapsed, toggleSidebar }

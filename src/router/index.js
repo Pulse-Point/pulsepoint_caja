@@ -43,6 +43,11 @@ const routes = [
         component: () => import('../views/contracts/ViewContract.vue')
     },
     {
+        path: '/contratos/view/bill/:dni',
+        name: 'ViewContractBill',
+        component: () => import('../views/contracts/ContractBillView.vue')
+    },
+    {
         path: '/contratos/edit/:dni',
         name: 'EditContract',
         component: () => import('../views/contracts/EditContract.vue')

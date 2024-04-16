@@ -39,7 +39,8 @@
                 </div>            
             </div>
 
-            <button style="width: 100%" class="btn btn-outline-primary" @click="$router.push(`/contratos/edit/${contract.clienteDni}`)">Editar</button>
+            <button style="width: 48%; margin-right: 2%" class="btn btn-outline-primary" @click="$router.push(`/contratos/edit/${contract.clienteDni}`)">Editar</button>
+            <button style="width: 48%" class="btn btn-outline-primary" @click="$router.push(`/contratos/view/bill/${contract.clienteDni}`)">Ver factura</button>
         </div>
     </div>
     &nbsp;
