@@ -10,7 +10,17 @@ const routes = [
     {
         path: '/productos',
         name: 'ProductosView',
-        component: () => import('../views/ProductosView.vue')
+        component: () => import('../views/products/ProductosView.vue')
+    },
+    {
+        path: '/productos/add',
+        name: 'AddProductosView',
+        component: () => import('../views/products/AddProductosView.vue')
+    },
+    {
+        path: '/productos/view/bill/:facturaCod',
+        name: 'ProductosBillView',
+        component: () => import('../views/products/ProductosBillView.vue')
     },
     {
         path: '/clientela',

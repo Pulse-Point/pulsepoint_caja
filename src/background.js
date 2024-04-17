@@ -540,3 +540,188 @@ ipcMain.on('retrieve-a-bill', async (event, dni) => {
     event.sender.send('error-retrieving-bill', error)
   }
 })
+
+/* PRODUCTS VIEW */
+
+// retrieve facturas
+ipcMain.on('retrieve-facturas', async (event) => {
+  const Factura = require('../models/factura')(db.sequelize, DataTypes)
+  const { Op } = require('sequelize');
+
+  console.log('retrieve-facturas event received')
+
+  try {
+    // retrieve all bills that arent related to a contract
+    Factura.findAll({
+      where: {
+        facturaDescripcion: {
+          [Op.notLike]: '%contrato%'
+        }
+      }
+    }).then(facturas => {
+      const facturasData = facturas.map(factura => factura.dataValues)
+    
+      console.log('facturas retrieved:', facturasData)
+    
+      event.sender.send('facturas', facturasData)
+    })
+  } catch (error) {
+    console.log('Error retrieving facturas:', error)
+  }
+})
+
+// create-sale-bill
+ipcMain.on('create-sale-bill', async (event, billData, salesToSend) => {
+  const Factura = require('../models/factura')(db.sequelize, DataTypes)
+  const FacturaProducto = require('../models/facturaproducto')(db.sequelize, DataTypes)
+  const Producto = require('../models/producto')(db.sequelize, DataTypes)
+
+  console.log('create-sale-bill event received')
+
+  const billCount = await Factura.count()
+  let billCode = `FAC${billCount + 1}`
+  const billNumber = billCode.split('FAC')[1]
+  if (billCount+1 < 10) {
+    billCode = `FAC00${billNumber}`
+  }
+  else if (billCount+1 < 100) {
+    billCode = `FAC0${billNumber}`
+  }
+  else {
+    billCode = `FAC${billNumber}`
+  }
+
+  const bill_toCreate = {
+    facturaCod: billCode,
+    clienteDni: billData.clienteDni,
+    sucursalId: 1,
+    facturaDetalle: billData.facturaDetalle,
+    facturaDescripcion: billData.facturaDescripcion,
+    facturaMetodoPago: billData.facturaMetodoPago,
+    facturaItbis: billData.facturaTotal * 0.18,
+    facturaSubtotal: billData.facturaTotal,
+    facturaTotal: billData.facturaTotal + (billData.facturaTotal * 0.18)
+  }
+
+  console.log('bill to create:', bill_toCreate)
+  console.log('sales to create:', salesToSend)
+
+  const t = await db.sequelize.transaction();
+  try {
+    // save in local database
+    await Factura.create({
+      facturaCod: bill_toCreate.facturaCod,
+      clienteDni: bill_toCreate.clienteDni,
+      sucursalId: bill_toCreate.sucursalId,
+      facturaDetalle: bill_toCreate.facturaDetalle,
+      facturaDescripcion: bill_toCreate.facturaDescripcion,
+      facturaMetodoPago: bill_toCreate.facturaMetodoPago,
+      facturaItbis: bill_toCreate.facturaItbis,
+      facturaSubtotal: bill_toCreate.facturaSubtotal,
+      facturaTotal: bill_toCreate.facturaTotal
+    }, { transaction: t });
+
+    for (let sale of salesToSend) {
+      // find the product with the code
+      const product = await Producto.findOne({ where: { productoCod: sale.productoCod } });
+      if (!product) {
+        event.sender.send('error-creating-sale-bill', 'Producto no encontrado')
+        await t.rollback();
+        return;
+      }
+
+      await FacturaProducto.create({        
+        facturaCod: billCode,
+        facturaProductoId: product.id,
+        productoCod: sale.productoCod,
+        productoCantidad: sale.productoCantidad,
+        productoPrecio: product.productoPrecio,
+        facturaProductoItbis: sale.itbis,
+        facturaProductoSubtotal: sale.subtotal,
+        facturaProductoTotal: sale.total
+      }, { transaction: t });
+
+      // update product stock
+      await Producto.update({
+        productoExistencia: product.productoExistencia - sale.productoCantidad
+      }, { where: { productoCod: sale.productoCod }, transaction: t });
+    }
+  
+    await t.commit();
+    event.sender.send('sale-bill-created', billCode)
+    console.log('New bill created:', bill_toCreate)
+
+  } catch (error) {
+    await t.rollback();
+    event.sender.send('error-creating-sale-bill', error)
+  }
+
+  // send request to server
+  await sendRequest(`${API_URL}/api/Factura`, bill_toCreate, 'POST')
+})
+
+// retrieve-bill-and-sales
+ipcMain.on('retrieve-bill-and-sales', async (event, facturaCod) => {
+  const Factura = require('../models/factura')(db.sequelize, DataTypes)
+  const FacturaProducto = require('../models/facturaproducto')(db.sequelize, DataTypes)
+
+  console.log('retrieve-bill-and-sales event received')
+
+  try {
+    Factura.findOne({ where: { facturaCod } }).then(bill => {
+      const billData = bill.dataValues
+
+      FacturaProducto.findAll({ where: { facturaCod } }).then(sales => {
+        const salesData = sales.map(sale => sale.dataValues)
+        console.log('bill and sales retrieved:', billData, salesData)
+        event.sender.send('bill-and-sales-retrieved', billData, salesData)
+      })
+    })
+  } catch (error) {
+    event.sender.send('error-retrieving-bill-and-sales', error)
+  }
+})
+
+// deleete bill-and-sales
+ipcMain.on('delete-bill-and-sales', async (event, facturaCod) => {
+  const Factura = require('../models/factura')(db.sequelize, DataTypes)
+  const FacturaProducto = require('../models/facturaproducto')(db.sequelize, DataTypes)
+  const Producto = require('../models/producto')(db.sequelize, DataTypes)
+
+  console.log('delete-bill-and-sales event received')
+
+  const t = await db.sequelize.transaction();
+  try {
+    // delete sales
+    const sales = await FacturaProducto.findAll({ where: { facturaCod }, transaction: t });
+    for (let sale of sales) {
+      // find the product with the code
+      const product = await Producto.findOne({ where: { productoCod: sale.productoCod } });
+      if (!product) {
+        event.sender.send('error-deleting-bill-and-sales', 'Producto no encontrado')
+        await t.rollback();
+        return;
+      }
+
+      await FacturaProducto.destroy({ where: { facturaCod, productoCod: sale.productoCod }, transaction: t });
+
+      // update product stock
+      await Producto.update({
+        productoExistencia: product.productoExistencia + sale.productoCantidad
+      }, { where: { productoCod: sale.productoCod }, transaction: t });
+    }
+
+    // delete bill
+    await Factura.destroy({ where: { facturaCod }, transaction: t });
+
+    await t.commit();
+    event.sender.send('bill-and-sales-deleted', facturaCod)
+    console.log('bill and sales deleted:', facturaCod)
+  } catch (error) {
+    await t.rollback();
+    event.sender.send('error-deleting-bill-and-sales', error)
+  }
+
+  // send request to server
+  await sendRequest(`${API_URL}/api/Factura/${facturaCod}`, null, 'DELETE')
+})
