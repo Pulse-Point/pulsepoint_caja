@@ -11,7 +11,8 @@
             </div>
         </div>
     </transition>
-    <div class="card shadow-sm rounded">
+    <center>
+    <div class="card shadow-sm rounded" style="width: 35%;">
         <div class="card-body text-left">
             <h1 class="card-title view-title">Registrar un nuevo Cliente</h1>
             <form @submit.prevent="submitForm">
@@ -53,6 +54,7 @@
             </form>
         </div>
     </div>
+    </center>
 </template>
 
 <script>

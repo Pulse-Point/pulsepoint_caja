@@ -12,7 +12,8 @@
             </div>
         </div>
     </transition>
-    <div class="card shadow-sm rounded">
+    <center>
+    <div class="card shadow-sm rounded" style="width: 50%">
         <div class="card-body text-left">
             <h1 class="card-title view-title">Registrar un nuevo Contrato</h1>
             <form @submit.prevent="submitForm">                
@@ -65,7 +66,9 @@
                 </div>
 
                 <div class="totals">
-                    <h3>Total: RD$ {{ totalPrice }}</h3>
+                    <h3>Subtotal: RD$ {{ totalPrice }}</h3>
+                    <h3>ITBIS: RD$ {{ totalPrice * 0.18 }}</h3>
+                    <h3>Total: RD$ {{ totalPrice + (totalPrice * 0.18) }}</h3>
                 </div>
 
                 <button style="width:100%" type="submit" class="btn btn-primary" :disabled="isSubmitting">
@@ -75,6 +78,8 @@
             </form>
         </div>
     </div>
+    </center>
+    &nbsp;
 </template>
 
 <script>
@@ -148,14 +153,13 @@
 
                 ipcRenderer.send('add-contract', contractData);
                 ipcRenderer.send('create-contract-bill', billData);
-
+                
                 ipcRenderer.once('contract-bill-created', (event, bill) => {
                     console.log('contract-bill-created event received:', bill);
                 });
                 
                 ipcRenderer.once('contract-added', (contract) => {
                     console.log('contract-added event received:', contract);
-
                     this.isSubmitting = false;
                     this.showModal = true;
                     this.modalMessage = 'Contrato agregado exitosamente...';

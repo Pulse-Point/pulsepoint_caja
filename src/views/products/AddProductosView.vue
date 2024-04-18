@@ -1,4 +1,6 @@
 <template>
+    <button style="margin-top: 20px; width: 25%; margin-bottom: -4%; margin-right: 59%" class="btn btn-outline-primary"
+        @click="$router.push(`/productos`)">Volver</button>
     <!-- Modal -->
     <transition name="fade">
         <div v-if="showModal" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); z-index: 1000; display: flex; justify-content: center; align-items: center;">
@@ -10,7 +12,7 @@
             </div>
         </div>
     </transition>
-    <div class="form-container">
+    <div class="form-container" style="gap: 50px">
         <div class="bill-details">            
             <div class="card shadow-sm rounded">
                 <div class="card-body text-left">
@@ -42,8 +44,10 @@
                             <input id="facturaDescripcion" v-model="factura.facturaDetalle" type="text" class="form-control" required>
                         </div>
 
-                        <div class="totals">
-                            <h3>Total: RD$ {{ salesTotal }}</h3>
+                        <div class="totals" style="margin-bottom: 15px">
+                            <h3><strong>Subtotal:</strong> RD$ {{ salesTotal }}</h3>
+                            <h3><strong>ITBIS:</strong> RD$ {{ salesTotal * 0.18}}</h3>
+                            <h3><strong>Total:</strong> RD$ {{ salesTotal + (salesTotal * 0.18)}}</h3>
                         </div>
 
                         <button style="width:100%" type="submit" class="btn btn-primary" :disabled="isSubmitting">
@@ -57,7 +61,7 @@
         <div class="sale-containers">
             <transition-group name="fade" tag="div" class="sale-containers">
                 <div v-for="(sale, index) in sales" :key="index">
-                    <div class="card shadow-sm rounded">
+                    <div class="card shadow-sm rounded" style="margin-bottom: 25px">
                         <div class="card-body text-left">
                             <div class="mb-3">
                             <label for="product" class="form-label">Producto:</label>
@@ -86,7 +90,7 @@
                     </div>
                 </div>
             </transition-group>
-            <button style="margin-top: 25px" class="btn btn-outline-primary" @click="addSale" :disabled="isSubmitting">
+            <button class="btn btn-primary" @click="addSale" :disabled="isSubmitting">
                 <span v-if="isSubmitting" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
                 Agregar Producto
             </button>
@@ -207,6 +211,7 @@
         async created() {     
             this.retrieveProductTypes()       
             this.retrieveProducts()
+            this.addSale()
         },
         setup() {
             return { collapsed, toggleSidebar }
@@ -222,13 +227,14 @@
     }
 
     .sale-containers {
-        width: 60%;
+        width: 50%;
         text-align: left;
     }
 
     .bill-details {
-        width: 40%;
+        width: 50%;
         text-align: left;
+        height: 100%;
     }
 
     .view-title {

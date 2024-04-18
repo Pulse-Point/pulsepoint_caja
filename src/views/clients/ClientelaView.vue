@@ -1,5 +1,8 @@
 <template>
     <h1 class="view-title">Administrar Clientes</h1>
+    <div class="spinner-border spinner-border-lg" v-show="loading" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
     <div class="action-menu">
         <button class="btn btn-primary" @click="$router.push('/clientela/add')">Añadir Cliente</button>
 
@@ -7,7 +10,7 @@
             <input v-model="searchText" @input="handleInputChange" type="text" class="form-control" placeholder="Escriba el nombre del cliente...">
         </div>
     </div>
-    <div class="table-section">
+    <div class="table-section" v-show="!loading">
         <table class="content-table">
             <thead>
                 <tr>
@@ -45,6 +48,7 @@
     export default {
         data() {
             return {
+                loading: true,
                 clients: [],
                 filteredClients: [],                
                 searchText: ''
@@ -60,6 +64,7 @@
 
                     this.clients = clients
                     this.filteredClients = clients
+                    this.loading = false
                 })
             },            
             handleInputChange() {

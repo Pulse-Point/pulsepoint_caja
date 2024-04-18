@@ -50,12 +50,14 @@
         color: rgb(0, 0, 0);
         text-decoration: none;
         height: 40px;
+        transition: 0.25s ease;
     }
 
     .link:hover {
         background-color: var(--sidebar-item-hover);
-        transform: translateX(10px);
-        transition: 0.5s ease;
+        transition: 0.25s ease;
+        padding-top: 25px;
+        padding-bottom: 25px;
     }
 
     .link.active {

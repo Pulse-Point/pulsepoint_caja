@@ -39,8 +39,8 @@
                 </div>            
             </div>
 
-            <button style="width: 48%; margin-right: 2%" class="btn btn-outline-primary" @click="$router.push(`/contratos/edit/${contract.clienteDni}`)">Editar</button>
-            <button style="width: 48%" class="btn btn-outline-primary" @click="$router.push(`/contratos/view/bill/${contract.clienteDni}`)">Ver factura</button>
+            <button style="width: 48%; margin-right: 2%;" class="btn btn-outline-primary" @click="$router.push(`/contratos/edit/${routeParameter}`)">Editar</button>
+            <button style="width: 48%;" class="btn btn-outline-primary" @click="$router.push(`/contratos/view/bill/${routeParameter}`)">Ver factura</button>
         </div>
     </div>
     &nbsp;
@@ -52,7 +52,8 @@
 
     export default {
         data() {
-            return {           
+            return {      
+                routeParameter: this.$route.params.dni,     
                 contract: {
                     clienteDni: '',
                     servicioCod: '',
@@ -73,6 +74,7 @@
         },
         created() {
             const dni = this.$route.params.dni;
+            console.log('dni', dni)
             this.retrieveData(dni)
         },
         methods: {

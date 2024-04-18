@@ -1,5 +1,8 @@
 <template>
     <h1 class="view-title">Administrar Contratos</h1>
+    <div class="spinner-border spinner-border-lg" v-show="loading" role="status">
+        <span class="sr-only">Loading...</span>
+    </div>
     <div class="action-menu">
         <button class="btn btn-primary" style="width: 30%;" @click="$router.push('/contratos/add')">Añadir Contrato</button>
         
@@ -13,8 +16,8 @@
             <option value="notExpired">Vigentes</option>
             <option value="expired">Expirados</option>
         </select>
-    </div>
-    <div class="table-section">
+    </div>    
+    <div class="table-section" v-show="!loading">
         <table class="content-table">
             <thead>
                 <tr>
@@ -49,6 +52,7 @@
     export default {
         data() {
             return {
+                loading: true,
                 contracts: [],
                 services: [],
                 filteredContracts: [],                
@@ -64,6 +68,7 @@
                 ipcRenderer.once('contracts-retrieved', (event, contracts) => {
                     this.contracts = contracts
                     this.filteredContracts = contracts
+                    this.loading = false
                 })                
             },                 
             handleInputChange() {

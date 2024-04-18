@@ -10,13 +10,33 @@ require('@electron/remote/main').initialize() // enable IPC communication
 const db = require('../models')
 const { ipcMain } = require('electron')
 require('dotenv').config()
-
+const https = require('https')
 const API_URL = process.env.API_URL
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
+
+// async function createLoginWindow() {
+//   // Create the browser window.
+//   const loginWin = new BrowserWindow({
+//     width: isDevelopment ? 1200 : 800,
+//     height: isDevelopment ? 800 : 600,
+//     icon: 'src/assets/icons/pulsepoint_app_logo.png',
+//     webPreferences: {
+      
+//       // Use pluginOptions.nodeIntegration, leave this alone
+//       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
+//       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
+//       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
+//       enableRemoteModule: true,
+//       preload: 'preload.js'
+//     }
+//   })
+
+//   loginWin.setMenuBarVisibility(false)
+// }
 
 async function createWindow() {
   // Create the browser window.
@@ -117,30 +137,29 @@ async function sendRequest(endpoint, data, method) {
   let response;
   try {
     if (method === 'POST') {
-      response = await axios.post(endpoint, data);
+      response = await axios.post(endpoint, {
+        ...data
+      });
     } else if (method === 'PUT') {
-      response = await axios.put(endpoint, data);
+      response = await axios.put(endpoint, {
+        ...data
+      });
     }
 
     console.log('Response:', response.data);
   } catch (error) {
-    requestQueue.push({ endpoint, data });
+    requestQueue.push({ endpoint, data, method });
   }
 }
 
 async function retryFailedRequests() {
   let newQueue = [];
 
-  if (requestQueue.length === 0) {  
-    return;
-  }
-
   console.log('Retrying failed requests:', requestQueue);
   
   for (let request of requestQueue) {
-    try {
-      const response = await axios.post(request.endpoint, request.data);
-      console.log('Response:', response.data);
+    try {      
+      sendRequest(request.endpoint, request.data, request.method);
     } catch (error) {
       newQueue.push(request);
     }
@@ -199,6 +218,30 @@ ipcMain.on('retrieve-clients', async (event) => {
 
   console.log('retrieve-clients event received')
 
+  // retrieve all contacts from the web as well
+  try {
+    const new_web_contacts = await axios.get(`https://26.105.234.68:7052/api/Clientes`, { httpsAgent: new https.Agent({ rejectUnauthorized: false }) });
+
+    console.log('web contacts retrieved:', new_web_contacts.data)
+
+    for (let contact of new_web_contacts.data) {
+      const contactExists = await Cliente.findOne({ where: { clienteDni: contact.clienteDni } });
+      if (!contactExists) {
+        await Cliente.create({
+          clienteDni: contact.clienteDni,
+          clienteNombre: contact.clienteNombre,
+          clienteApellido: contact.clienteApellido,
+          clienteEmail: contact.clienteEmail,
+          clienteTelefono: contact.clienteTelefono,
+          clienteDireccion: contact.clienteDireccion
+        });
+      }
+    }
+
+  } catch (error) {
+    console.log('Error retrieving web contacts:', error)
+  }
+
   try {
     Cliente.findAll().then(clients => {
       const clientsData = clients.map(client => client.dataValues)
@@ -232,11 +275,30 @@ ipcMain.on('retrieve-a-client', async (event, dni) => {
   }
 })
 
+function formatString(input) {
+  // Remove all non-numeric characters
+  input = input.replace(/\D/g, '');
+
+  // Insert hyphens at desired positions
+  return input.replace(/^(\d{3})(\d{7})(\d{1})$/, '$1-$2-$3');
+}
+
+function formatPhone(input) {
+  // Remove all non-numeric characters
+  input = input.replace(/\D/g, '');
+
+  // Insert hyphens at desired positions
+  return input.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
+}
+
 // add client
 ipcMain.on('add-client', async (event, clientData) => {
   const Cliente = require('../models/cliente')(db.sequelize, DataTypes)
 
   console.log('add-client event received')
+
+  clientData.clienteDni = formatString(clientData.clienteDni)
+  clientData.clienteTelefono = formatPhone(clientData.clienteTelefono)
 
   const client_toCreate = {
     Dni: clientData.clienteDni,
@@ -268,17 +330,17 @@ ipcMain.on('add-client', async (event, clientData) => {
       }, { transaction: t });
     }    
     await t.commit();
-    event.sender.send('client-added', client_toCreate.dataValues)
-    console.log('New client added:', client_toCreate.dataValues)
-
+    event.sender.send('client-added', client_toCreate.dataValues)    
   } catch (error) {
     await t.rollback();
     event.sender.send('error-adding-client', error)
     console.log('sent error adding client')
-  }
+  }  
 
+  console.log('api_url:', API_URL)
   // send request to server  
-  await sendRequest(`${API_URL}/api/Cliente`, client_toCreate, 'POST')
+  sendRequest(`${API_URL}/api/Clientes/`, clientData, 'POST')
+  console.log('sent to server')
 })
 
 // update client
@@ -286,6 +348,9 @@ ipcMain.on('update-client', async (event, clientData) => {
   const Cliente = require('../models/cliente')(db.sequelize, DataTypes)
 
   console.log('update-client event received')
+
+  clientData.clienteDni = formatString(clientData.clienteDni)
+  clientData.clienteTelefono = formatPhone(clientData.clienteTelefono)
 
   const client_toUpdate = {
     Dni: clientData.clienteDni,
@@ -317,7 +382,7 @@ ipcMain.on('update-client', async (event, clientData) => {
   }
 
   // send request to server
-  await sendRequest(`${API_URL}/api/Cliente/${client_toUpdate.clienteDni}`, client_toUpdate, 'PUT')
+  await sendRequest(`${API_URL}/api/Clientes/${client_toUpdate.clienteDni}`, clientData, 'PUT')
 })
 
 /* CONTRACTS VIEW */
@@ -344,8 +409,36 @@ ipcMain.on('retrieve-services', async (event) => {
 // retrieve contracts
 ipcMain.on('retrieve-contracts', async (event) => {
   const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
+  const Cliente = require('../models/cliente')(db.sequelize, DataTypes)
 
   console.log('retrieve-contracts event received')
+  
+  // retrieve all contracts from the web as well
+  try {
+    const new_web_contracts = await axios.get(`https://26.105.234.68:7052/api/Contratos`, { httpsAgent: new https.Agent({ rejectUnauthorized: false }) });
+    console.log('web contracts retrieved:', new_web_contracts.data)
+
+    for (let contract of new_web_contracts.data) {
+      contract.clienteId += 13 // catch up to the core's db index
+      const client = await Cliente.findOne({ where: { id: contract.clienteId } });
+      if (client) {
+        console.log('client:', client)
+        await Contrato.create({
+          clienteDni: client.clienteDni,
+          servicioCod: contract.servicioCod,
+          contratoDescripcion: contract.contratoDescripcion,
+          servicioPrecio: contract.servicioPrecio,
+          contratoFechaInicio: contract.contratoFechaInicio,
+          contratoFechaVencimiento: contract.contratoFechaVencimiento
+        });
+      } else {
+        console.log('No client found for clienteId:', contract.clienteId)
+      }
+    }
+
+  } catch (error) {
+    console.log('Error retrieving web contracts:', error)
+  }
 
   try {
     Contrato.findAll().then(contracts => {
@@ -384,14 +477,17 @@ ipcMain.on('add-contract', async (event, contractData) => {
   const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
 
   console.log('add-contract event received')
-
+  contractData.clienteDni = formatString(contractData.clienteDni)
+  
   const contract_toCreate = {
     clienteDni: contractData.clienteDni,
     servicioCod: contractData.servicioCod,
     contratoDescripcion: contractData.contratoDescripcion,
     servicioPrecio: contractData.servicioPrecio,
     contratoFechaInicio: contractData.contratoFechaInicio,
-    contratoFechaVencimiento: contractData.contratoFechaVencimiento
+    contratoFechaVencimiento: contractData.contratoFechaVencimiento,
+    Cliente: null,
+    Servicio: null
   }
 
   console.log('contract to create:', contract_toCreate)
@@ -419,7 +515,7 @@ ipcMain.on('add-contract', async (event, contractData) => {
   }
 
   // send request to server  
-  await sendRequest(`${API_URL}/api/Contrato`, contract_toCreate, 'POST')
+  await sendRequest(`https://26.105.234.68:7052/api/Contratos`, contract_toCreate, 'POST')
 })
 
 // update contract
@@ -466,6 +562,7 @@ ipcMain.on('create-contract-bill', async (event, billData) => {
   const Factura = require('../models/factura')(db.sequelize, DataTypes)
 
   console.log('create-contract-bill event received')
+  billData.clienteDni = formatString(billData.clienteDni)
 
   const billCount = await Factura.count()
   let billCode = `FAC${billCount + 1}`
@@ -479,6 +576,8 @@ ipcMain.on('create-contract-bill', async (event, billData) => {
   else {
     billCode = `FAC${billNumber}`
   }
+
+  billData.clienteDni = formatString(billData.clienteDni)
 
   const bill_toCreate = {
     facturaCod: billCode,
@@ -519,12 +618,14 @@ ipcMain.on('create-contract-bill', async (event, billData) => {
   }
 
   // send request to server  
-  await sendRequest(`${API_URL}/api/Factura`, bill_toCreate, 'POST')
+  await sendRequest(`${API_URL}/api/Facturas`, bill_toCreate, 'POST')
 })
 
 // retrieve a bill
 ipcMain.on('retrieve-a-bill', async (event, dni) => {
   const Factura = require('../models/factura')(db.sequelize, DataTypes)
+
+  console.log('dni:', dni)
 
   console.log('retrieve-contract-bill event received')
 
@@ -591,6 +692,8 @@ ipcMain.on('create-sale-bill', async (event, billData, salesToSend) => {
     billCode = `FAC${billNumber}`
   }
 
+  billData.clienteDni = formatString(billData.clienteDni)
+
   const bill_toCreate = {
     facturaCod: billCode,
     clienteDni: billData.clienteDni,
@@ -645,6 +748,18 @@ ipcMain.on('create-sale-bill', async (event, billData, salesToSend) => {
       await Producto.update({
         productoExistencia: product.productoExistencia - sale.productoCantidad
       }, { where: { productoCod: sale.productoCod }, transaction: t });
+
+      // send request to server
+      await sendRequest(`${API_URL}/api/Facturas/`, {
+        facturaCod: billCode,
+        facturaProductoId: product.id,
+        productoCod: sale.productoCod,
+        productoCantidad: sale.productoCantidad,
+        productoPrecio: product.productoPrecio,
+        facturaProductoItbis: sale.itbis,
+        facturaProductoSubtotal: sale.subtotal,
+        facturaProductoTotal: sale.total
+      }, 'POST')
     }
   
     await t.commit();
@@ -657,7 +772,7 @@ ipcMain.on('create-sale-bill', async (event, billData, salesToSend) => {
   }
 
   // send request to server
-  await sendRequest(`${API_URL}/api/Factura`, bill_toCreate, 'POST')
+  await sendRequest(`${API_URL}/api/Facturas`, bill_toCreate, 'POST')
 })
 
 // retrieve-bill-and-sales
@@ -679,6 +794,28 @@ ipcMain.on('retrieve-bill-and-sales', async (event, facturaCod) => {
     })
   } catch (error) {
     event.sender.send('error-retrieving-bill-and-sales', error)
+  }
+})
+
+// retrieve-all-bills-and-sales
+ipcMain.on('retrieve-all-bills-and-sales', async (event) => {
+  const Factura = require('../models/factura')(db.sequelize, DataTypes)
+  const FacturaProducto = require('../models/facturaproducto')(db.sequelize, DataTypes)
+
+  console.log('retrieve-all-bills-and-sales event received')
+
+  try {
+    Factura.findAll().then(bills => {
+      const billsData = bills.map(bill => bill.dataValues)
+
+      FacturaProducto.findAll().then(sales => {
+        const salesData = sales.map(sale => sale.dataValues)
+        console.log('all bills and sales retrieved:', billsData, salesData)
+        event.sender.send('all-bills-and-sales-retrieved', billsData, salesData)
+      })
+    })
+  } catch (error) {
+    event.sender.send('error-retrieving-all-bills-and-sales', error)
   }
 })
 

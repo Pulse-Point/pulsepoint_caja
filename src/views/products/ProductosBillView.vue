@@ -115,7 +115,19 @@
                 ipcRenderer.once('bill-and-sales-retrieved', (event, bill, sales) => {
                     console.log('bill and sales retrieved event received:', bill, sales)
                     this.bill = bill
+
+                    // round numbers to 2 decimals
+                    this.bill.facturaItbis = this.bill.facturaItbis.toFixed(2)
+                    this.bill.facturaSubtotal = this.bill.facturaSubtotal.toFixed(2)
+                    this.bill.facturaTotal = this.bill.facturaTotal.toFixed(2)
+
                     this.sales = sales
+
+                    // round numbers to 2 decimals
+                    this.sales.forEach(sale => {
+                        sale.facturaProductoItbis = sale.facturaProductoItbis.toFixed(2)
+                        sale.facturaProductoTotal = sale.facturaProductoTotal.toFixed(2)
+                    })
                 })
             },    
             async generatePDF() {
