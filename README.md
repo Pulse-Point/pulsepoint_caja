@@ -8,6 +8,8 @@ Esta es la aplicación de caja desarrollada para manejar operaciones de cobro co
 
 Este proyecto ha sido desarrollado en el framework ElectronJS, el cual ha sido integrado con VueJS para agilizar el proceso de desarrollo y obtener buenos resultados.
 
+La aplicación presenta integración con el Core y la API de PulsePoint. En caso de un error en la integración de uno de estos, la caja es totalmente funcional con su base de datos local, y todas las peticiones fallidas entrarán en una cola local, la cual intentará reenviar las peticiones como sea posible. Esta cola se guarda en el almacenamiento local de Electron para poder recuperar la misma cola sin importar cuántas veces se cierre la aplicación.
+
 ## Configuration del proyecto
 
 1. Installar NodeJS
