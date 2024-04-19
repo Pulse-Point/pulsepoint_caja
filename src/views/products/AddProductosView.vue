@@ -20,7 +20,7 @@
                     <form @submit.prevent="submitForm">                
                         <div class="mb-3">
                             <label for="clienteDni" class="form-label">Cliente DNI:</label>
-                            <input id="clienteDni" v-model="factura.clienteDni" type="text" class="form-control" required>
+                            <input id="clienteDni" v-model="factura.clienteDni" type="text" class="form-control" required maxlength="11">
                         </div>                
 
                         <!-- payment methods -->
