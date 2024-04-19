@@ -8,7 +8,7 @@
                 <h2 style="font-size: 24px; color: #333; text-align: center;">Resultado</h2>
                 <p style="font-size: 18px; color: #666; line-height: 1.6;">{{ modalMessage }}</p>        
                 <button class="btn btn-primary" @click="$router.push('/contratos')">Aceptar</button>
-                <button class="btn btn-primary" @click="$router.push(`/contratos/view/bill/${contract.clienteDni}`)">Ver factura</button>
+                <button class="btn btn-primary" @click="$router.push(`/contratos/view/bill/${this.dni}`)">Ver factura</button>
             </div>
         </div>
     </transition>
@@ -19,7 +19,7 @@
             <form @submit.prevent="submitForm">                
                 <div class="mb-3">
                     <label for="clienteDni" class="form-label">Cliente DNI:</label>
-                    <input id="clienteDni" v-model="contract.clienteDni" type="text" class="form-control" required>
+                    <input id="clienteDni" v-model="contract.clienteDni" type="text" class="form-control" required maxlength="11">
                 </div>
 
                 <div class="mb-3">
@@ -98,6 +98,7 @@
                 selectedService: '',
                 services: [],
                 totalPrice: 0,
+                dni: '',
                 contract: {
                     contratoId: '',
                     clienteDni: '',
@@ -158,8 +159,10 @@
                     console.log('contract-bill-created event received:', bill);
                 });
                 
-                ipcRenderer.once('contract-added', (contract) => {
-                    console.log('contract-added event received:', contract);
+                ipcRenderer.once('contract-added', (event, createdContract) => {
+                    console.log('contract-added event received:', createdContract);
+                    this.dni = createdContract.clienteDni;
+                    console.log('dni:', this.dni)
                     this.isSubmitting = false;
                     this.showModal = true;
                     this.modalMessage = 'Contrato agregado exitosamente...';

@@ -6,7 +6,7 @@
             <h1 class="card-title view-title">Datos del contrato</h1>
             
             <div style="display: flex; justify-content: space-between; padding: 1em; border-radius: 5px; font-size: large">
-                <div class="client-data" style="width: 48%; padding: 1em; background-color: rgb(227 228 255); border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                <div class="client-data" style="width: 48%; padding: 1em; background-color: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                     <h4 style="margin-bottom: 1em;">Información del Cliente</h4>
                     <p><strong>DNI:</strong></p>
                     <p>{{ client.clienteDni }}</p>
@@ -22,7 +22,7 @@
                     <p>{{ client.clienteDireccion }}</p>                
                 </div>
     
-                <div class="contract-data" style="width: 48%; padding: 1em; background-color: rgb(227 228 255); border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
+                <div class="contract-data" style="width: 48%; padding: 1em; background-color: white; border-radius: 5px; box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);">
                     <h4 style="margin-bottom: 1em;">Información del Contrato</h4>
                     <p><strong>Descripción:</strong></p>
                     <p>{{ contract.contratoDescripcion }}</p>

@@ -18,7 +18,7 @@
             <form @submit.prevent="submitForm">
                 <div class="mb-3">
                     <label for="dni" class="form-label">DNI:</label>
-                    <input id="dni" v-model="client.clienteDni" type="text" class="form-control" required>
+                    <input id="dni" v-model="client.clienteDni" type="text" class="form-control" required maxlength="11">
                 </div>
 
                 <div class="mb-3">
@@ -38,7 +38,7 @@
 
                 <div class="mb-3">
                     <label for="telefono" class="form-label">Telefono:</label>
-                    <input id="telefono" v-model="client.clienteTelefono" type="text" class="form-control" required>
+                    <input id="telefono" v-model="client.clienteTelefono" type="text" class="form-control" required maxlength="10">
                 </div>
 
                 <div class="mb-3">
