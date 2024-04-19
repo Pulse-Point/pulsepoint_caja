@@ -10,33 +10,12 @@ require('@electron/remote/main').initialize() // enable IPC communication
 const db = require('../models')
 const { ipcMain } = require('electron')
 require('dotenv').config()
-const https = require('https')
 const API_URL = process.env.API_URL
 
 // Scheme must be registered before the app is ready
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { secure: true, standard: true } }
 ])
-
-// async function createLoginWindow() {
-//   // Create the browser window.
-//   const loginWin = new BrowserWindow({
-//     width: isDevelopment ? 1200 : 800,
-//     height: isDevelopment ? 800 : 600,
-//     icon: 'src/assets/icons/pulsepoint_app_logo.png',
-//     webPreferences: {
-      
-//       // Use pluginOptions.nodeIntegration, leave this alone
-//       // See nklayman.github.io/vue-cli-plugin-electron-builder/guide/security.html#node-integration for more info
-//       nodeIntegration: process.env.ELECTRON_NODE_INTEGRATION,
-//       contextIsolation: !process.env.ELECTRON_NODE_INTEGRATION,
-//       enableRemoteModule: true,
-//       preload: 'preload.js'
-//     }
-//   })
-
-//   loginWin.setMenuBarVisibility(false)
-// }
 
 async function createWindow() {
   // Create the browser window.
@@ -130,10 +109,13 @@ if (isDevelopment) {
 // Database processes/listeners
 
 // Request queue for failed attempts
-
-let requestQueue = []
+const Store = require('electron-store');
+const store = new Store();
+let requestQueue = store.get('requestQueue', []);
 
 async function sendRequest(endpoint, data, method) {
+  // Load the request queue from electron-store
+
   let response;
   try {
     if (method === 'POST') {
@@ -149,111 +131,88 @@ async function sendRequest(endpoint, data, method) {
     console.log('Response:', response.data);
   } catch (error) {
     requestQueue.push({ endpoint, data, method });
+    store.set('requestQueue', requestQueue);
+
   }
 }
 
 async function retryFailedRequests() {
   let newQueue = [];
 
+  if (requestQueue.length === 0) {
+    // Retry failed requests every 8 seconds
+    setTimeout(retryFailedRequests, 8000);
+    return;
+  }
+
   console.log('Retrying failed requests:', requestQueue);
   
   for (let request of requestQueue) {
     try {      
-      sendRequest(request.endpoint, request.data, request.method);
+      await sendRequest(request.endpoint, request.data, request.method);
     } catch (error) {
       newQueue.push(request);
     }
   }
 
   requestQueue = newQueue;
+  store.set('requestQueue', requestQueue);
 
-  // Retry failed requests every 10 seconds
-  setTimeout(retryFailedRequests, 10000);
+  // Retry failed requests every 8 seconds
+  setTimeout(retryFailedRequests, 8000);
 }
 
 /* INVENTORY VIEW */
 
-// retrieve products
+const { getProducts, getProductTypes } = require('./controllers/products/productsServices');
+
 ipcMain.on('retrieve-products', async (event) => {
-  const Producto = require('../models/producto')(db.sequelize, DataTypes)
-
-  console.log('retrieve-products event received')
+  console.log('retrieve-products event received');
 
   try {
-    Producto.findAll().then(products => {
-      const productsData = products.map(product => product.dataValues)
-      console.log('products retrieved:', products)
-
-      event.sender.send('products', productsData)
-    })
+    const productsData = await getProducts(db.sequelize, DataTypes);
+    console.log('products retrieved:', productsData);
+    event.sender.send('products', productsData);
   } catch (error) {
-    console.log('Error retrieving products:', error)
+    console.log('Error retrieving products:', error);
   }
-})
+});
 
-// retrieve product types
 ipcMain.on('retrieve-product-types', async (event) => {
-  const TipoProducto = require('../models/tipoproducto')(db.sequelize, DataTypes)
-
-  console.log('retrieve-product-types event received')
+  console.log('retrieve-product-types event received');
 
   try {
-    TipoProducto.findAll().then(productTypes => {
-      const productTypesData = productTypes.map(productType => productType.dataValues)
-
-      console.log('product types retrieved:', productTypesData)
-
-      event.sender.send('product-types', productTypesData)
-    })
+    const productTypesData = await getProductTypes(db.sequelize, DataTypes);
+    console.log('product types retrieved:', productTypesData);
+    event.sender.send('product-types', productTypesData);
   } catch (error) {
-    console.log('Error retrieving product types:', error)
+    console.log('Error retrieving product types:', error);
   }
-})
+});
 
 /* CLIENT VIEW */
 
-// retrieve clients
+import webClientService from './controllers/clients/webClientService'
+const localClientService = require('./controllers/clients/localClientService')
+
 ipcMain.on('retrieve-clients', async (event) => {
-  const Cliente = require('../models/cliente')(db.sequelize, DataTypes)
+  console.log('retrieve-clients event received');
 
-  console.log('retrieve-clients event received')
-
-  // retrieve all contacts from the web as well
   try {
-    const new_web_contacts = await axios.get(`https://26.105.234.68:7052/api/Clientes`, { httpsAgent: new https.Agent({ rejectUnauthorized: false }) });
-
-    console.log('web contacts retrieved:', new_web_contacts.data)
-
-    for (let contact of new_web_contacts.data) {
-      const contactExists = await Cliente.findOne({ where: { clienteDni: contact.clienteDni } });
-      if (!contactExists) {
-        await Cliente.create({
-          clienteDni: contact.clienteDni,
-          clienteNombre: contact.clienteNombre,
-          clienteApellido: contact.clienteApellido,
-          clienteEmail: contact.clienteEmail,
-          clienteTelefono: contact.clienteTelefono,
-          clienteDireccion: contact.clienteDireccion
-        });
-      }
-    }
-
+    await webClientService(db.sequelize, DataTypes);
+    console.log('web contacts retrieved');
   } catch (error) {
-    console.log('Error retrieving web contacts:', error)
+    console.log('Error retrieving web contacts:', error);
   }
 
   try {
-    Cliente.findAll().then(clients => {
-      const clientsData = clients.map(client => client.dataValues)
-
-      console.log('clients retrieved:', clientsData)
-
-      event.sender.send('clients', clientsData)
-    })
+    const clientsData = await localClientService(db.sequelize, DataTypes);
+    console.log('clients retrieved:', clientsData);
+    event.sender.send('clients', clientsData);
   } catch (error) {
-    console.log('Error retrieving clients:', error)
+    console.log('Error retrieving clients:', error);
   }
-})
+});
 
 // retrieve a client
 ipcMain.on('retrieve-a-client', async (event, dni) => {
@@ -275,115 +234,43 @@ ipcMain.on('retrieve-a-client', async (event, dni) => {
   }
 })
 
-function formatString(input) {
-  // Remove all non-numeric characters
-  input = input.replace(/\D/g, '');
+// import utils
+const formatString = require('./utils/formatString')
 
-  // Insert hyphens at desired positions
-  return input.replace(/^(\d{3})(\d{7})(\d{1})$/, '$1-$2-$3');
-}
+const { addClient } = require('./controllers/clients/addClientService');
 
-function formatPhone(input) {
-  // Remove all non-numeric characters
-  input = input.replace(/\D/g, '');
-
-  // Insert hyphens at desired positions
-  return input.replace(/^(\d{3})(\d{3})(\d{4})$/, '$1-$2-$3');
-}
-
-// add client
 ipcMain.on('add-client', async (event, clientData) => {
-  const Cliente = require('../models/cliente')(db.sequelize, DataTypes)
+  console.log('add-client event received');
 
-  console.log('add-client event received')
-
-  clientData.clienteDni = formatString(clientData.clienteDni)
-  clientData.clienteTelefono = formatPhone(clientData.clienteTelefono)
-
-  const client_toCreate = {
-    Dni: clientData.clienteDni,
-    nombre: clientData.clienteNombre,
-    apellido: clientData.clienteApellido,
-    email: clientData.clienteEmail,
-    telefono: clientData.clienteTelefono,
-    direccion: clientData.clienteDireccion
-  }
-  
-  const t = await db.sequelize.transaction();
   try {
-
-    // save in local database
-    const clientExists = await Cliente.findOne({ where: { clienteDni: clientData.clienteDni }, transaction: t });
-    if (clientExists) {
-      event.sender.send('client-already-exists', clientData.clienteDni)
-      await t.rollback();
-      return;
-    
-    } else {
-      await Cliente.create({
-        clienteDni: clientData.clienteDni,
-        clienteNombre: clientData.clienteNombre,
-        clienteApellido: clientData.clienteApellido,
-        clienteEmail: clientData.clienteEmail,
-        clienteTelefono: clientData.clienteTelefono,
-        clienteDireccion: clientData.clienteDireccion
-      }, { transaction: t });
-    }    
-    await t.commit();
-    event.sender.send('client-added', client_toCreate.dataValues)    
+    const client = await addClient(db.sequelize, DataTypes, clientData);
+    event.sender.send('client-added', client);
+    console.log('api_url:', API_URL);
+    sendRequest(`${API_URL}/api/Clientes/`, clientData, 'POST');
+    console.log('sent to server');
   } catch (error) {
-    await t.rollback();
-    event.sender.send('error-adding-client', error)
-    console.log('sent error adding client')
-  }  
+    event.sender.send('error-adding-client', error);
+    console.log('sent error adding client');
+  }
+});
 
-  console.log('api_url:', API_URL)
-  // send request to server  
-  sendRequest(`${API_URL}/api/Clientes/`, clientData, 'POST')
-  console.log('sent to server')
-})
+const { updateClient } = require('./controllers/clients/updateClientService');
 
-// update client
 ipcMain.on('update-client', async (event, clientData) => {
-  const Cliente = require('../models/cliente')(db.sequelize, DataTypes)
+  console.log('update-client event received');
 
-  console.log('update-client event received')
-
-  clientData.clienteDni = formatString(clientData.clienteDni)
-  clientData.clienteTelefono = formatPhone(clientData.clienteTelefono)
-
-  const client_toUpdate = {
-    Dni: clientData.clienteDni,
-    nombre: clientData.clienteNombre,
-    apellido: clientData.clienteApellido,
-    email: clientData.clienteEmail,
-    telefono: clientData.clienteTelefono,
-    direccion: clientData.clienteDireccion
-  }
-
-  const t = await db.sequelize.transaction();
   try {
-    // save in local database
-    await Cliente.update({
-      clienteNombre: clientData.clienteNombre,
-      clienteApellido: clientData.clienteApellido,
-      clienteEmail: clientData.clienteEmail,
-      clienteTelefono: clientData.clienteTelefono,
-      clienteDireccion: clientData.clienteDireccion
-    }, { where: { clienteDni: clientData.clienteDni }, transaction: t });
-    await t.commit();
-    event.sender.send('client-updated', client_toUpdate)
-    console.log('Client updated:', client_toUpdate)
+    const client = await updateClient(db.sequelize, DataTypes, clientData);
+    event.sender.send('client-updated', client);
+    console.log('Client updated:', client);
 
+    // send request to server
+    await sendRequest(`${API_URL}/api/Clientes/${client.clienteDni}`, clientData, 'PUT');
   } catch (error) {
-    await t.rollback();
-    event.sender.send('error-updating-client', error)
-    console.log('sent error updating client')
+    event.sender.send('error-updating-client', error);
+    console.log('sent error updating client');
   }
-
-  // send request to server
-  await sendRequest(`${API_URL}/api/Clientes/${client_toUpdate.clienteDni}`, clientData, 'PUT')
-})
+});
 
 /* CONTRACTS VIEW */
 
@@ -406,220 +293,86 @@ ipcMain.on('retrieve-services', async (event) => {
   }
 })
 
-// retrieve contracts
+const { getContracts, getContract } = require('./controllers/contracts/retrieveContractService')
+import getWebContracts from './controllers/contracts/retrieveWebContractService'
+
 ipcMain.on('retrieve-contracts', async (event) => {
-  const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
-  const Cliente = require('../models/cliente')(db.sequelize, DataTypes)
-
-  console.log('retrieve-contracts event received')
-  
-  // retrieve all contracts from the web as well
-  try {
-    const new_web_contracts = await axios.get(`https://26.105.234.68:7052/api/Contratos`, { httpsAgent: new https.Agent({ rejectUnauthorized: false }) });
-    console.log('web contracts retrieved:', new_web_contracts.data)
-
-    for (let contract of new_web_contracts.data) {
-      contract.clienteId += 13 // catch up to the core's db index
-      const client = await Cliente.findOne({ where: { id: contract.clienteId } });
-      if (client) {
-        console.log('client:', client)
-        await Contrato.create({
-          clienteDni: client.clienteDni,
-          servicioCod: contract.servicioCod,
-          contratoDescripcion: contract.contratoDescripcion,
-          servicioPrecio: contract.servicioPrecio,
-          contratoFechaInicio: contract.contratoFechaInicio,
-          contratoFechaVencimiento: contract.contratoFechaVencimiento
-        });
-      } else {
-        console.log('No client found for clienteId:', contract.clienteId)
-      }
-    }
-
-  } catch (error) {
-    console.log('Error retrieving web contracts:', error)
-  }
+  console.log('retrieve-contracts event received');
 
   try {
-    Contrato.findAll().then(contracts => {
-      const contractsData = contracts.map(contract => contract.dataValues)
-
-      console.log('contracts retrieved:', contractsData)
-
-      event.sender.send('contracts-retrieved', contractsData)
-    })
+    getWebContracts(db.sequelize, DataTypes, `https://26.105.234.68:7052/api/Contratos`);
+    const contractsData = await getContracts(db.sequelize, DataTypes);
+    console.log('contracts retrieved:', contractsData);
+    event.sender.send('contracts-retrieved', contractsData);
   } catch (error) {
-    console.log('Error retrieving contracts:', error)
+    console.log('Error retrieving contracts:', error);
   }
-})
+});
 
-// retrieve a contract
 ipcMain.on('retrieve-a-contract', async (event, dni) => {
-  const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
-
-  console.log('retrieve-a-contract event received')
+  console.log('retrieve-a-contract event received');
 
   try {
-    Contrato.findOne({ where: { clienteDni: dni } }).then(contract => {
-      const contractData = contract.dataValues
-
-      console.log('contract retrieved:', contractData)
-
-      event.sender.send('contract-retrieved', contractData)
-    })
+    const contractData = await getContract(db.sequelize, DataTypes, dni);
+    console.log('contract retrieved:', contractData);
+    event.sender.send('contract-retrieved', contractData);
   } catch (error) {
-    event.sender.send('error-retrieving-contract', error)
+    event.sender.send('error-retrieving-contract', error);
   }
-})
+});
 
-// add contract
+const { addContract } = require('./controllers/contracts/addContractService');
+const { updateContract } = require('./controllers/contracts/updateContractService');
+
 ipcMain.on('add-contract', async (event, contractData) => {
-  const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
+  console.log('add-contract event received');
 
-  console.log('add-contract event received')
-  contractData.clienteDni = formatString(contractData.clienteDni)
-  
-  const contract_toCreate = {
-    clienteDni: contractData.clienteDni,
-    servicioCod: contractData.servicioCod,
-    contratoDescripcion: contractData.contratoDescripcion,
-    servicioPrecio: contractData.servicioPrecio,
-    contratoFechaInicio: contractData.contratoFechaInicio,
-    contratoFechaVencimiento: contractData.contratoFechaVencimiento,
-    Cliente: null,
-    Servicio: null
-  }
-
-  console.log('contract to create:', contract_toCreate)
-
-  const t = await db.sequelize.transaction();
   try {
-    // save in local database
-    await Contrato.create({
-      clienteDni: contractData.clienteDni,
-      servicioCod: contractData.servicioCod,
-      contratoDescripcion: contractData.contratoDescripcion,
-      servicioPrecio: contractData.servicioPrecio,
-      contratoFechaInicio: contractData.contratoFechaInicio,
-      contratoFechaVencimiento: contractData.contratoFechaVencimiento
-    }, { transaction: t });
-    
-    await t.commit();
-    event.sender.send('contract-added', contract_toCreate)
-    console.log('New contract added:', contract_toCreate)
+    const contract = await addContract(db.sequelize, DataTypes, contractData);
+    event.sender.send('contract-added', contract);
+    console.log('New contract added:', contract);
 
+    // send request to server  
+    await sendRequest(`https://26.105.234.68:7052/api/Contratos`, contract, 'POST');
   } catch (error) {
-    await t.rollback();
-    event.sender.send('error-adding-contract', error)
-    console.log('sent error adding contract')
+    event.sender.send('error-adding-contract', error);
+    console.log('sent error adding contract');
   }
+});
 
-  // send request to server  
-  await sendRequest(`https://26.105.234.68:7052/api/Contratos`, contract_toCreate, 'POST')
-})
-
-// update contract
 ipcMain.on('update-contract', async (event, contractData) => {
-  const Contrato = require('../models/contrato')(db.sequelize, DataTypes)
+  console.log('update-contract event received');
 
-  console.log('update-contract event received')
-
-  const contract_toUpdate = {
-    clienteDni: contractData.clienteDni,
-    servicioCod: contractData.servicioCod,
-    contratoDescripcion: contractData.contratoDescripcion,
-    servicioPrecio: contractData.servicioPrecio,
-    contratoFechaInicio: contractData.contratoFechaInicio,
-    contratoFechaVencimiento: contractData.contratoFechaVencimiento
-  }
-
-  const t = await db.sequelize.transaction();
   try {
-    // save in local database
-    await Contrato.update({
-      servicioCod: contractData.servicioCod,
-      contratoDescripcion: contractData.contratoDescripcion,
-      servicioPrecio: contractData.servicioPrecio,
-      contratoFechaInicio: contractData.contratoFechaInicio,
-      contratoFechaVencimiento: contractData.contratoFechaVencimiento
-    }, { where: { clienteDni: contractData.clienteDni }, transaction: t });
-    await t.commit();
-    event.sender.send('contract-updated', contract_toUpdate)
-    console.log('Contract updated:', contract_toUpdate)
+    const contract = await updateContract(db.sequelize, DataTypes, contractData);
+    event.sender.send('contract-updated', contract);
+    console.log('Contract updated:', contract);
 
+    // send request to server  
+    await sendRequest(`${API_URL}/api/Contrato`, contract, 'PUT');
   } catch (error) {
-    await t.rollback();
-    event.sender.send('error-updating-contract', error)
-    console.log('sent error updating contract')
+    event.sender.send('error-updating-contract', error);
+    console.log('sent error updating contract');
   }
+});
 
-  // send request to server  
-  await sendRequest(`${API_URL}/api/Contrato`, contract_toUpdate, 'PUT')
-})
+const { createBill } = require('./controllers/facturas/billService');
 
-// create contract bill
 ipcMain.on('create-contract-bill', async (event, billData) => {
-  const Factura = require('../models/factura')(db.sequelize, DataTypes)
+  console.log('create-contract-bill event received');
 
-  console.log('create-contract-bill event received')
-  billData.clienteDni = formatString(billData.clienteDni)
-
-  const billCount = await Factura.count()
-  let billCode = `FAC${billCount + 1}`
-  const billNumber = billCode.split('FAC')[1]
-  if (billCount+1 < 10) {
-    billCode = `FAC00${billNumber}`
-  }
-  else if (billCount+1 < 100) {
-    billCode = `FAC0${billNumber}`
-  }
-  else {
-    billCode = `FAC${billNumber}`
-  }
-
-  billData.clienteDni = formatString(billData.clienteDni)
-
-  const bill_toCreate = {
-    facturaCod: billCode,
-    clienteDni: billData.clienteDni,
-    sucursalId: 1,
-    facturaDetalle: billData.facturaDetalle,
-    facturaDescripcion: 'Pago de contrato',
-    facturaMetodoPago: billData.facturaMetodoPago,
-    facturaItbis: billData.facturaSubtotal * 0.18,
-    facturaSubtotal: billData.facturaSubtotal,
-    facturaTotal: billData.facturaSubtotal + (billData.facturaSubtotal * 0.18)
-  }
-
-  console.log('bill to create:', bill_toCreate)
-
-  const t = await db.sequelize.transaction();
   try {
-    // save in local database
-    await Factura.create({
-      facturaCod: bill_toCreate.facturaCod,
-      clienteDni: bill_toCreate.clienteDni,
-      sucursalId: bill_toCreate.sucursalId,
-      facturaDetalle: bill_toCreate.facturaDetalle,
-      facturaDescripcion: bill_toCreate.facturaDescripcion,
-      facturaMetodoPago: bill_toCreate.facturaMetodoPago,
-      facturaItbis: bill_toCreate.facturaItbis,
-      facturaSubtotal: bill_toCreate.facturaSubtotal,
-      facturaTotal: bill_toCreate.facturaTotal
-    }, { transaction: t });
-    await t.commit();
-    event.sender.send('contract-bill-created', bill_toCreate)
-    console.log('New bill created:', bill_toCreate)
+    const bill = await createBill(db.sequelize, DataTypes, billData);
+    event.sender.send('contract-bill-created', bill);
+    console.log('New bill created:', bill);
 
+    // send request to server  
+    await sendRequest(`${API_URL}/api/Facturas`, bill, 'POST');
   } catch (error) {
-    await t.rollback();
-    event.sender.send('error-creating-bill', error)
-    console.log('sent error creating bill')
+    event.sender.send('error-creating-bill', error);
+    console.log('sent error creating bill');
   }
-
-  // send request to server  
-  await sendRequest(`${API_URL}/api/Facturas`, bill_toCreate, 'POST')
-})
+});
 
 // retrieve a bill
 ipcMain.on('retrieve-a-bill', async (event, dni) => {
@@ -642,9 +395,6 @@ ipcMain.on('retrieve-a-bill', async (event, dni) => {
   }
 })
 
-/* PRODUCTS VIEW */
-
-// retrieve facturas
 ipcMain.on('retrieve-facturas', async (event) => {
   const Factura = require('../models/factura')(db.sequelize, DataTypes)
   const { Op } = require('sequelize');
