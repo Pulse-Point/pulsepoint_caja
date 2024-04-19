@@ -121,10 +121,14 @@ async function sendRequest(endpoint, data, method) {
     if (method === 'POST') {
       response = await axios.post(endpoint, {
         ...data
+      }, {
+        timeout: 5000
       });
     } else if (method === 'PUT') {
       response = await axios.put(endpoint, {
         ...data
+      }, {
+        timeout: 5000
       });
     }
 
@@ -132,7 +136,6 @@ async function sendRequest(endpoint, data, method) {
   } catch (error) {
     requestQueue.push({ endpoint, data, method });
     store.set('requestQueue', requestQueue);
-
   }
 }
 
