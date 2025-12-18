@@ -134,7 +134,11 @@ async function sendRequest(endpoint, data, method) {
 
     console.log('Response:', response.data);
   } catch (error) {
-    requestQueue.push({ endpoint, data, method });
+    requestQueue.push({
+      endpoint,
+      method,
+      encryptedPayload: encrypt(data)
+    })
     store.set('requestQueue', requestQueue);
   }
 }
